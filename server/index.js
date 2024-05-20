@@ -1,15 +1,18 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const { secp256k1 } = require("ethereum-cryptography/secp256k1");
+const { keccak256 } = require("ethereum-cryptography/keccak");
+const { utf8ToBytes } = require("ethereum-cryptography/utils");
 const port = 3042;
 
 app.use(cors());
 app.use(express.json());
 
 const balances = {
-  "02220cc2727e38af90f19286b0c649526c4dba984fe372622efe9766c0709981ab": 100,
-  "0230489e9222ac925c968baf908f92e91e869e91ccee6f2ca0dfd5c06a282116e3": 50,
-  "02324d06758a6c89ac9f90ea67db2f644513fb46b36699797902362b58c94ff469": 75,
+  "02b7eab5e5c25ff15f779dcbd0d9d11235d73adf9f034ca7d9aaf6de8480c4134f": 100,
+  "03a25c2556ab5be6ffbe8690b7f0cb9ac9258fbb2de5c7827b3efd787225c814e0": 50,
+  "0220038b30aba185f128b334de07684ad16e145e6976c0d0eba83ab2b519587e09": 75,
 };
 
 app.get("/balance/:address", (req, res) => {
@@ -19,9 +22,31 @@ app.get("/balance/:address", (req, res) => {
 });
 
 app.post("/send", (req, res) => {
-  //edit here (:
+  const { sender, recipient, amount, signature } = req.body;
 
-  const { sender, recipient, amount } = req.body;
+  const cleanHexSignature = signature.startsWith("0x")
+  ? signature.slice(2)
+  : signature;
+
+  const rHex = cleanHexSignature.slice(0, 64);
+  const sHex = cleanHexSignature.slice(64, 128);
+  const recoveryHex = cleanHexSignature.slice(128, 130);
+
+  const r = BigInt("0x" + rHex);
+  const s = BigInt("0x" + sHex);
+  const recovery = parseInt(recoveryHex, 16);
+
+  const rawSignature = {
+    r: r,
+    s: s,
+    recovery: recovery,
+  };
+
+  const bytes = utf8ToBytes("Transact");
+  const hash = keccak256(bytes);
+
+  const isSigned = secp256k1.verify(rawSignature, hash, sender);
+  console.log("Verified Signature: ", isSigned)
 
   setInitialBalance(sender);
   setInitialBalance(recipient);
@@ -29,9 +54,13 @@ app.post("/send", (req, res) => {
   if (balances[sender] < amount) {
     res.status(400).send({ message: "Not enough funds!" });
   } else {
-    balances[sender] -= amount;
-    balances[recipient] += amount;
-    res.send({ balance: balances[sender] });
+    if (!isSigned) {
+      res.status(400).send({ message: "Wrong Public Key or Signature (check for a space at the begining of the string)" });
+    } else {
+      balances[sender] -= amount;
+      balances[recipient] += amount;
+      res.send({ balance: balances[sender] });
+    }
   }
 });
 

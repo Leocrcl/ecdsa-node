@@ -1,21 +1,22 @@
 import server from "./server";
-import { secp256k1 } from 'ethereum-cryptography/secp256k1';
-import { toHex }  from "ethereum-cryptography/utils";
 
-function Wallet({ address, setAddress, balance, setBalance, privateKey, setPrivateKey }) {
+function Wallet({signature, setSignature, balance, setBalance, publicKey, setPublicKey}) {
   async function onChange(evt) {
-    const privateKey = evt.target.value;
-    setPrivateKey(privateKey);
-    const address = toHex(secp256k1.getPublicKey(privateKey));
-    setAddress(address)
-    if (address) {
+    const publicKey = evt.target.value;
+    setPublicKey(publicKey);
+    if (publicKey) {
       const {
         data: { balance },
-      } = await server.get(`balance/${address}`);
+      } = await server.get(`balance/${publicKey}`);
       setBalance(balance);
     } else {
       setBalance(0);
     }
+  }
+
+  async function onChangeSignature(evt) {
+    const signature = evt.target.value;
+    setSignature(signature);
   }
 
   return (
@@ -23,11 +24,22 @@ function Wallet({ address, setAddress, balance, setBalance, privateKey, setPriva
       <h1>Your Wallet</h1>
 
       <label>
-        Private Key
-        <input placeholder="Type an Private key, for example: 0x1" value={privateKey} onChange={onChange}></input>
+        Public Key
+        <input
+          placeholder="Type a public key"
+          value={publicKey}
+          onChange={onChange}
+        ></input>
       </label>
 
-      <div>Address: {address.slice(0,10)}...</div>
+      <label>
+        Signature
+        <input
+          placeholder="Type in signature"
+          value={signature}
+          onChange={onChangeSignature}
+        ></input>
+      </label>
 
       <div className="balance">Balance: {balance}</div>
     </div>
